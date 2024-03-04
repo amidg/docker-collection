@@ -1,0 +1,43 @@
+FROM fedora:latest
+LABEL maintainer="Dmitrii Gusev<amidg4x4dima@gmail.com>"
+ARG LINK_TO_SOURCE="https://github.com/alvr-org/ALVR/archive/refs/tags/v20.6.1.tar.gz"
+
+# improve dnf performance
+RUN echo "skip_if_unavailable=True" >> /etc/dnf/dnf.conf && \
+    echo "fastestmirror=True" >> /etc/dnf/dnf.conf && \
+    echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf && \
+    echo "defaultyes=True" >> /etc/dnf/dnf.conf && \
+    echo "keepcache=True" >> /etc/dnf/dnf.conf && \
+    dnf autoremove -y && dnf clean all -y
+
+# upgrade all latest
+RUN dnf upgrade --refresh -y
+
+# set RPM Fusion
+RUN sudo dnf install \
+  https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm -y && \
+  sudo dnf install \
+  https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm -y
+
+# update and install missing tools
+RUN dnf update -y && dnf upgrade -y && \
+    dnf install -y git clang curl wget ffmpeg nasm pkgconf yasm unzip && \
+    dnf install -y yasm libdrm-devel vulkan-headers pipewire-jack-audio-connection-kit-devel atk-devel \
+		gdk-pixbuf2-devel cairo-devel rust-gdk0.15-devel x264-devel vulkan-devel libunwind-devel \
+		clang openssl-devel alsa-lib-devel libva-devel && \
+    dnf swap --enablerepo=rpmfusion-free-updates-testing mesa-va-drivers mesa-va-drivers-freeworld && \
+    dnf swap --enablerepo=rpmfusion-free-updates-testing mesa-vdpau-drivers mesa-vdpau-drivers-freeworld
+
+# create a workdir for ALVR build
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+RUN sudo dnf groupinstall 'Development Tools'
+RUN wget https://github.com/alvr-org/ALVR/archive/refs/tags/v20.6.1.tar.gz
+RUN tar -xzvf v20.6.1.tar.gz
+RUN mv ALVR-20.6.1 /alvr
+WORKDIR /alvr
+
+## build
+#RUN cargo xtask prepare-deps --platform linux --no-nvidia
+#
+## move the executable to the proper folder
+#RUN mv /build
